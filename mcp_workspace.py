@@ -4,14 +4,11 @@ from mcp.server.fastmcp import FastMCP
 from langchain_qdrant import QdrantVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
 
+from config import QDRANT_URL, EMBEDDING_MODEL
+
 mcp = FastMCP("workspace-rag")
 
-# MUST match your indexing embeddings!
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
-
-QDRANT_URL = "http://localhost:6333"
+embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
 
 @mcp.tool()

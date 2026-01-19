@@ -5,15 +5,11 @@ from pathlib import Path
 
 import pathspec
 from langchain_community.document_loaders import TextLoader
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
 
-# Configuration
-QDRANT_URL = "http://localhost:6333"
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
+from config import QDRANT_URL, EMBEDDING_MODEL, CHUNK_SIZE, CHUNK_OVERLAP
 
 # Always exclude these patterns (in addition to .gitignore)
 DEFAULT_EXCLUDES = [
@@ -102,9 +98,7 @@ def split_documents(docs):
 
 def create_vectorstore(docs, collection_name: str):
     """Create Qdrant vector store from documents."""
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2"
-    )
+    embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
     vectorstore = QdrantVectorStore.from_documents(
         docs,

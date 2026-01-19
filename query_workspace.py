@@ -1,17 +1,15 @@
 # query_workspace.py
 import sys
 
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
 
-QDRANT_URL = "http://localhost:6333"
+from config import QDRANT_URL, EMBEDDING_MODEL
 
 
 def query(collection_name: str, query_text: str, k: int = 5):
     """Query the vector store and return similar documents."""
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2"
-    )
+    embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
     vectorstore = QdrantVectorStore.from_existing_collection(
         embedding=embeddings,
