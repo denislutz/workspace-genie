@@ -1,0 +1,38 @@
+[tools]
+python = "3.11"
+
+[env]
+PYTHONDONTWRITEBYTECODE = "1"
+
+[tasks.install]
+description = "Install project dependencies"
+run = "pip install -r requirements.txt"
+
+[tasks.index]
+description = "Index a workspace for RAG"
+run = "python index_workspace.py"
+
+[tasks.qdrant]
+description = "Start Qdrant vector database locally"
+run = "docker run -p 6333:6333 -p 6334:6334 -v qdrant_storage:/qdrant/storage qdrant/qdrant"
+
+[tasks.delete-collection]
+description = "Delete a Qdrant collection"
+run = "curl -X DELETE http://localhost:6333/collections/$1"
+
+[tasks.list-collections]
+description = "List all Qdrant collections"
+run = "curl -s http://localhost:6333/collections | python -m json.tool"
+
+[tasks.query]
+description = "Query a workspace collection"
+run = "python query_workspace.py"
+
+[tasks.collection-info]
+description = "Get info about a collection"
+run = "curl -s http://localhost:6333/collections/$1 | python -m json.tool"
+
+[tasks.mcp]
+description = "Run MCP server"
+run = "python mcp_workspace.py"
+
