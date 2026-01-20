@@ -40,7 +40,7 @@ def query(collection_name: str, query_text: str, k: int = 5, layer: str = None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Query a workspace collection")
-    parser.add_argument("collection", help="Collection name (e.g., workspace_H2BWebApps)")
+    parser.add_argument("collection", help="Collection name (e.g., workspace_YourAppName)")
     parser.add_argument("query", nargs="+", help="Search query")
     parser.add_argument("-k", type=int, default=5, help="Number of results (default: 5)")
     parser.add_argument("--layer", "-l", help="Filter by layer (architecture, services, components, utils)")

@@ -74,7 +74,7 @@ def search_codebase(workspace: str, query: str, num_results: int = 5) -> str:
     """Search indexed workspace for relevant code/files.
 
     Args:
-        workspace: Name of the workspace collection (e.g., "H2BWebApps")
+        workspace: Name of the workspace collection (e.g., "YourAppName")
         query: Search query to find relevant code
         num_results: Number of results to return (default 5)
     """
@@ -113,7 +113,7 @@ def search_codebase_smart(
     3. Reusable Base Libraries - layers with role "base"
 
     Args:
-        workspace: Name of the workspace collection (e.g., "H2BWebApps")
+        workspace: Name of the workspace collection (e.g., "YourAppName")
         query: What to search for (e.g., "authentication logic")
         current_file: Current file being edited (optional, for context-aware results)
     """
