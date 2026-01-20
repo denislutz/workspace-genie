@@ -1,28 +1,25 @@
 # layer_config.py - Dynamic layer classification for workspaces
 """
-Each project provides a `.workspace_layers.py` file in its root with:
+Each project can provide a `.claude/workspace_layers.json` file with custom layer config:
 
-    LAYER_MAP = {
-        "architecture": {
-            "patterns": ["docs/", "README", "architecture/"],
-            "priority": 10,
-            "role": "architecture",  # highest priority - docs, patterns
+    {
+      "layers": {
+        "docs": {
+          "patterns": ["docs/", "README", "architecture/"],
+          "priority": 100,
+          "role": "architecture"
         },
-        "services": {
-            "patterns": ["services/", "api/"],
-            "priority": 8,
-            "role": "feature",  # feature implementation layers
+        "core": {
+          "patterns": ["core/", "lib/"],
+          "priority": 90,
+          "role": "base"
         },
-        "components": {
-            "patterns": ["components/", "ui/"],
-            "priority": 7,
-            "role": "feature",
-        },
-        "utils": {
-            "patterns": ["utils/", "lib/", "shared/"],
-            "priority": 9,
-            "role": "base",  # reusable base libraries
-        },
+        "features": {
+          "patterns": ["features/", "modules/"],
+          "priority": 80,
+          "role": "feature"
+        }
+      }
     }
 
 Roles:
@@ -33,60 +30,44 @@ Roles:
 The priority determines classification order (higher = checked first).
 The role determines how layers are grouped in smart search results.
 
-If no config is found, default classification is used.
+If no config is found, default_layers.json is used.
 """
 
 import fnmatch
-import importlib.util
+import json
 from pathlib import Path
-from typing import Optional
 
-# Default layer map used when project has no custom config
-DEFAULT_LAYER_MAP = {
-    "architecture": {
-        "patterns": ["**/docs/**", "**/README*", "**/architecture/**", "**/*.md", "**/ADR/**"],
-        "priority": 10,
-        "role": "architecture",
-    },
-    "services": {
-        "patterns": ["**/services/**", "**/api/**", "**/src/services/**"],
-        "priority": 8,
-        "role": "feature",
-    },
-    "components": {
-        "patterns": ["**/components/**", "**/ui/**", "**/src/components/**", "**/views/**"],
-        "priority": 7,
-        "role": "feature",
-    },
-    "utils": {
-        "patterns": ["**/utils/**", "**/lib/**", "**/shared/**", "**/common/**", "**/helpers/**"],
-        "priority": 9,
-        "role": "base",
-    },
-}
+
+def load_default_layer_map() -> dict:
+    """Load the default layer map from default_layers.json."""
+    default_file = Path(__file__).parent / "default_layers.json"
+    try:
+        with open(default_file) as f:
+            config = json.load(f)
+            return config.get("layers", {})
+    except Exception as e:
+        print(f"Warning: Failed to load default_layers.json: {e}")
+        return {}
 
 
 def load_project_layer_map(workspace_path: str) -> dict:
-    """Load project-specific layer map or return default."""
-    config_file = Path(workspace_path) / ".workspace_layers.py"
+    """Load project-specific layer map or return default.
+
+    Looks for config at: <workspace>/.claude/workspace_layers.json
+    """
+    config_file = Path(workspace_path) / ".claude" / "workspace_layers.json"
 
     if config_file.exists():
         try:
-            spec = importlib.util.spec_from_file_location("workspace_layers", config_file)
-            if spec is None or spec.loader is None:
-                print(f"Warning: Could not load spec for {config_file}")
-                return DEFAULT_LAYER_MAP
-
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-
-            if hasattr(module, "LAYER_MAP"):
-                print(f"Loaded custom layer config from {config_file}")
-                return module.LAYER_MAP
+            with open(config_file) as f:
+                config = json.load(f)
+                if "layers" in config:
+                    print(f"Loaded custom layer config from {config_file}")
+                    return config["layers"]
         except Exception as e:
             print(f"Warning: Failed to load {config_file}: {e}")
 
-    return DEFAULT_LAYER_MAP
+    return load_default_layer_map()
 
 
 def classify_layer(filepath: str, layer_map: dict) -> str:

@@ -1,0 +1,24 @@
+{
+  "layers": {
+    "architecture": {
+      "patterns": ["**/docs/**", "**/README*", "**/architecture/**", "**/*.md", "**/ADR/**"],
+      "priority": 100,
+      "role": "architecture"
+    },
+    "utils": {
+      "patterns": ["**/utils/**", "**/lib/**", "**/shared/**", "**/common/**", "**/helpers/**"],
+      "priority": 90,
+      "role": "base"
+    },
+    "services": {
+      "patterns": ["**/services/**", "**/api/**", "**/src/services/**"],
+      "priority": 80,
+      "role": "feature"
+    },
+    "components": {
+      "patterns": ["**/components/**", "**/ui/**", "**/src/components/**", "**/views/**"],
+      "priority": 70,
+      "role": "feature"
+    }
+  }
+}

@@ -36,3 +36,7 @@ run = "curl -s http://localhost:6333/collections/$1 | python -m json.tool"
 description = "Run MCP server"
 run = "python mcp_workspace.py"
 
+[tasks.setupForProject]
+description = "Setup workspace-genie for a target repo (indexes + configures MCP)"
+run = "python setup.py"
+
