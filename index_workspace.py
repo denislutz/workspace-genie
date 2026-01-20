@@ -8,6 +8,7 @@ from langchain_community.document_loaders import TextLoader
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from qdrant_client import QdrantClient
 
 from config import QDRANT_URL, EMBEDDING_MODEL, CHUNK_SIZE, CHUNK_OVERLAP
 from layer_config import load_project_layer_map, classify_layer
@@ -123,16 +124,29 @@ def create_vectorstore(docs, collection_name: str):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python index_workspace.py <workspace_path>")
+        print("Usage: python index_workspace.py <workspace_path> [--skip-delete-check]")
         sys.exit(1)
 
     workspace_path = sys.argv[1]
     workspace_path = os.path.abspath(workspace_path)
+    skip_delete_check = "--skip-delete-check" in sys.argv
     project_name = os.path.basename(workspace_path)
     collection_name = f"workspace_{project_name}"
 
     print(f"Indexing workspace: {workspace_path}")
     print(f"Collection name: {collection_name}")
+
+    # Check if collection exists and ask before deletion (unless skipped)
+    if not skip_delete_check:
+        client = QdrantClient(url=QDRANT_URL)
+        collections = [c.name for c in client.get_collections().collections]
+        if collection_name in collections:
+            response = input(f"Collection '{collection_name}' already exists. Delete and re-index? [Y/n]: ").strip().lower()
+            if response == "n":
+                print("Aborted.")
+                sys.exit(0)
+            client.delete_collection(collection_name)
+            print(f"Deleted existing collection: {collection_name}")
 
     # Load project-specific layer configuration
     layer_map = load_project_layer_map(workspace_path)

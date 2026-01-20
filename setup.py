@@ -52,12 +52,34 @@ def main():
     else:
         print(f"Found layer config: {layer_config_path}")
 
-    # Step 1: Index the codebase
-    print(f"\nIndexing {target_repo}...")
-    exit_code = os.system(f"python {workspace_genie_dir}/index_workspace.py {target_repo}")
-    if exit_code != 0:
-        print("Indexing failed!")
-        sys.exit(1)
+    # Step 1: Index the codebase (check if collection exists first)
+    import subprocess
+    from qdrant_client import QdrantClient
+
+    collection_name = f"workspace_{project_name}"
+    client = QdrantClient(url="http://localhost:6333")
+    collections = [c.name for c in client.get_collections().collections]
+
+    should_index = True
+    if collection_name in collections:
+        response = input(f"Collection '{collection_name}' already exists. Delete and re-index? [Y/n]: ").strip().lower()
+        if response == "n":
+            print("Skipping indexing, keeping existing collection...")
+            should_index = False
+        else:
+            client.delete_collection(collection_name)
+            print(f"Deleted existing collection: {collection_name}")
+
+    if should_index:
+        print(f"\nIndexing {target_repo}...")
+        # Use --skip-delete flag to skip the deletion prompt in index_workspace.py
+        result = subprocess.run(
+            ["python", f"{workspace_genie_dir}/index_workspace.py", target_repo, "--skip-delete-check"],
+            cwd=workspace_genie_dir
+        )
+        if result.returncode != 0:
+            print("Indexing failed!")
+            sys.exit(1)
 
     # Step 2: Configure MCP in target repo
     mcp_config_path = Path(target_repo) / ".mcp.json"
@@ -71,15 +93,27 @@ def main():
 
     # Add/update workspace-genie server
     config["mcpServers"]["workspace-genie"] = {
-        "command": "python",
-        "args": [f"{workspace_genie_dir}/mcp_workspace.py"]
+        "type": "stdio",
+        "command": "mise",
+        "args": [
+            "x",
+            "-C",
+            workspace_genie_dir,
+            "--",
+            "python",
+            f"{workspace_genie_dir}/mcp_workspace.py"
+        ],
+        "env": {}
     }
 
     with open(mcp_config_path, "w") as f:
         json.dump(config, f, indent=2)
 
     print(f"\nSetup complete!")
-    print(f"  - Indexed: workspace_{project_name}")
+    if should_index:
+        print(f"  - Indexed: workspace_{project_name}")
+    else:
+        print(f"  - Using existing index: workspace_{project_name}")
     print(f"  - MCP config: {mcp_config_path}")
     print(f"\nRestart Claude Code in {target_repo} to use workspace-genie.")
 

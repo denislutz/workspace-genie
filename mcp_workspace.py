@@ -9,7 +9,7 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 from config import QDRANT_URL, EMBEDDING_MODEL
 from layer_config import (
     classify_layer,
-    DEFAULT_LAYER_MAP,
+    load_default_layer_map,
     get_architecture_layers,
     get_base_layers,
 )
@@ -118,7 +118,7 @@ def search_codebase_smart(
         current_file: Current file being edited (optional, for context-aware results)
     """
     collection_name = f"workspace_{workspace}"
-    layer_map = DEFAULT_LAYER_MAP  # TODO: could load from workspace metadata
+    layer_map = load_default_layer_map()  # TODO: could load from workspace metadata
 
     vectorstore = QdrantVectorStore.from_existing_collection(
         embedding=embeddings,
