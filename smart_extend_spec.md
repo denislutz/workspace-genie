@@ -1,4 +1,4 @@
-# Workspace RAG System - Setup Guide
+# Workspace Genie - Setup Guide
 
 ## Overview
 
@@ -54,13 +54,13 @@ pip install langchain-community langchain-qdrant qdrant-client ollama
 ### 2. Project Structure
 
 ```
-workspace-rag/
+workspace-genie/
 ├─ venv/
 ├─ index_workspace.py          # Indexiert Projekte
 ├─ query_workspace.py           # Manuelle Queries (Testing)
 ├─ mcp_workspace_server.py      # MCP Server für Claude Code
 ├─ list_projects.py             # Zeigt indexierte Projekte
-└─ .workspace-rag.json          # Architektur-Config (pro Projekt)
+└─ .workspace-genie.json        # Architektur-Config (pro Projekt)
 ```
 
 ## Core Scripts
@@ -139,7 +139,7 @@ from langchain_qdrant import QdrantVectorStore
 from langchain_community.embeddings import OllamaEmbeddings
 import json
 
-server = Server("workspace-rag")
+server = Server("workspace-genie")
 
 @server.list_tools()
 async def list_tools():
@@ -289,7 +289,7 @@ for collection in collections.collections:
         print(f"  • {project_name} ({info.points_count} documents)")
 ```
 
-## Architektur-Config (.workspace-rag.json)
+## Architektur-Config (.workspace-genie.json)
 
 Place in your project root:
 
@@ -332,9 +332,9 @@ In `~/.config/claude-code/mcp_servers.json`:
 
 ```json
 {
-  "workspace-rag": {
+  "workspace-genie": {
     "command": "python",
-    "args": ["/path/to/workspace-rag/mcp_workspace_server.py"],
+    "args": ["/path/to/workspace-genie/mcp_workspace_server.py"],
     "env": {}
   }
 }
@@ -344,7 +344,7 @@ In `~/.config/claude-code/mcp_servers.json`:
 
 ```bash
 # In eigenem Terminal
-cd workspace-rag
+cd workspace-genie
 source venv/bin/activate
 python mcp_workspace_server.py
 ```
@@ -481,7 +481,7 @@ results = vectorstore.similarity_search(
 1. **Indexiere dein erstes Projekt** mit `index_workspace.py`
 2. **Teste manuelle Queries** mit `query_workspace.py`
 3. **Starte MCP Server** und integriere in Claude Code
-4. **Erstelle `.workspace-rag.json`** für deine Architektur
+4. **Erstelle `.workspace-genie.json`** für deine Architektur
 5. **Erweitere für große Codebases** mit hierarchischem Indexing
 
 ## Vorteile dieses Setups

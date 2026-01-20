@@ -14,7 +14,7 @@ from layer_config import (
     get_base_layers,
 )
 
-mcp = FastMCP("workspace-rag")
+mcp = FastMCP("workspace-genie")
 
 embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 qdrant_client = QdrantClient(url=QDRANT_URL)
