@@ -70,6 +70,13 @@ def load_project_layer_map(workspace_path: str) -> dict:
     return load_default_layer_map()
 
 
+#   "layers": {
+#     "architecture": {
+#       "patterns": ["**/docs/**", "**/README*", "**/architecture/**", "**/*.md", "**/ADR/**"],
+#       "priority": 100,
+#       "role": "architecture"
+#     },
+
 def classify_layer(filepath: str, layer_map: dict) -> str:
     """Classify a file path into an architecture layer based on the layer map."""
     filepath_normalized = filepath.replace("\\", "/")

@@ -12,7 +12,9 @@ from layer_config import (
     load_default_layer_map,
     get_architecture_layers,
     get_base_layers,
+    load_project_layer_map,
 )
+from index_workspace import load_workspace, split_documents, create_vectorstore
 
 mcp = FastMCP("workspace-genie")
 
@@ -187,6 +189,58 @@ def list_workspaces() -> str:
         return "No indexed workspaces found."
 
     return "Indexed workspaces:\n" + "\n".join(workspaces)
+
+
+@mcp.tool()
+def index_workspace(workspace_path: str, force_reindex: bool = False) -> str:
+    """Index a workspace directory for semantic code search.
+
+    This indexes all code files in the workspace into a Qdrant collection,
+    enabling semantic search via search_codebase and search_codebase_smart.
+
+    Args:
+        workspace_path: Absolute path to the workspace directory to index
+        force_reindex: If True, delete existing collection and re-index (default False)
+    """
+    import os
+
+    workspace_path = os.path.abspath(workspace_path)
+    project_name = os.path.basename(workspace_path)
+    collection_name = f"workspace_{project_name}"
+
+    if not os.path.isdir(workspace_path):
+        return f"Error: '{workspace_path}' is not a valid directory."
+
+    # Check if collection already exists
+    collections = [c.name for c in qdrant_client.get_collections().collections]
+    if collection_name in collections:
+        if not force_reindex:
+            return (
+                f"Collection '{collection_name}' already exists. "
+                f"Use force_reindex=True to delete and re-index."
+            )
+        qdrant_client.delete_collection(collection_name)
+
+    # Load project-specific layer configuration
+    layer_map = load_project_layer_map(workspace_path)
+
+    # Load and process documents
+    docs = load_workspace(workspace_path, layer_map)
+    if not docs:
+        return f"No documents found in '{workspace_path}'."
+
+    chunks = split_documents(docs)
+
+    # Create vector store
+    create_vectorstore(chunks, collection_name)
+
+    return (
+        f"Successfully indexed workspace '{project_name}'.\n"
+        f"- Documents: {len(docs)}\n"
+        f"- Chunks: {len(chunks)}\n"
+        f"- Collection: {collection_name}\n"
+        f"- Layers: {list(layer_map.keys())}"
+    )
 
 
 async def main():

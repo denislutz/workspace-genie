@@ -9,7 +9,7 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 from config import QDRANT_URL, EMBEDDING_MODEL
 
 
-def query(collection_name: str, query_text: str, k: int = 5, layer: str = None):
+def query(collection_name: str, query_text: str, k: int = 5, layer: str = ''):
     """Query the vector store and return similar documents."""
     embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
