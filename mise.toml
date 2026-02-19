@@ -10,11 +10,19 @@ run = "pip install -r requirements.txt"
 
 [tasks.index]
 description = "Index a workspace for RAG"
-run = "python index_workspace.py"
+run = "python src/index_workspace.py"
 
 [tasks.qdrant]
 description = "Start Qdrant vector database locally"
 run = "docker run -p 6333:6333 -p 6334:6334 -v qdrant_storage:/qdrant/storage qdrant/qdrant"
+
+[tasks.qdrant-start]
+description = "Start Qdrant vector database server (local)"
+run = "qdrant &"
+
+[tasks.qdrant-status]
+description = "Check Qdrant server status"
+run = "curl -s http://localhost:6333/collections | python -m json.tool"
 
 [tasks.delete-collection]
 description = "Delete a Qdrant collection"
@@ -32,11 +40,52 @@ run = "python query_workspace.py"
 description = "Get info about a collection"
 run = "curl -s http://localhost:6333/collections/$1 | python -m json.tool"
 
+[tasks.ollama-start]
+description = "Start Ollama server for local LLM"
+run = "ollama serve &"
+
+[tasks.ollama-pull]
+description = "Download a model for Ollama"
+run = "ollama pull {{model}}"
+
+[tasks.ollama-list]
+description = "List available Ollama models"
+run = "ollama list"
+
+[tasks.ollama-status]
+description = "Check Ollama server status"
+run = "curl -s http://localhost:11434/api/tags | python -m json.tool"
+
 [tasks.mcp]
 description = "Run MCP server"
-run = "python mcp_workspace.py"
+run = "cd src && python mcp_workspace.py"
 
 [tasks.setupForProject]
 description = "Setup workspace-genie for a target repo (indexes + configures MCP)"
-run = "python setup.py"
+run = "cd src && python setup.py"
+
+[tasks.inspector]
+description = "Start MCP Inspector to test the MCP server"
+run = "npx @modelcontextprotocol/inspector --config mcp-inspector.config.json --server workspace-genie"
+
+[tasks.agent]
+description = "Start the LangChain agent CLI"
+run = """
+if [ -f .env.local ]; then
+  export $(grep -v '^#' .env.local | xargs)
+fi
+cd src && python agent.py
+"""
+
+[tasks.test]
+description = "Run integration tests with dependency injection (real services, no mocks)"
+run = "python -m pytest src/tests/test_integration.py -v"
+
+[tasks.test-unit]
+description = "Run unit tests only"
+run = "python -m pytest src/tests/unit/ -v"
+
+[tasks.test-all]
+description = "Run all tests (unit + integration)"
+run = "python -m pytest src/tests/ -v"
 

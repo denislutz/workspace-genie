@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "workspace-genie": {
+      "command": "python",
+      "args": ["mcp_workspace.py"],
+      "env": {}
+    }
+  }
+}

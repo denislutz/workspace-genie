@@ -3,9 +3,10 @@ __pycache__/
 *$py.class
 .venv/
 venv/
-.env
+.env.local
 *.egg-info/
 dist/
 build/
 .mypy_cache/
 .pytest_cache/
+node_modules

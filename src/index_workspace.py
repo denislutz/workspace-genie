@@ -10,8 +10,17 @@ from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client import QdrantClient
 
-from config import QDRANT_URL, EMBEDDING_MODEL, CHUNK_SIZE, CHUNK_OVERLAP
+import sys
+import os
+from pathlib import Path
+
+# Add parent directory to path for config import
+parent_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(parent_dir))
+
+from config import CHUNK_SIZE, CHUNK_OVERLAP
 from layer_config import load_project_layer_map, classify_layer
+from vector_store_config import get_qdrant_client, get_embeddings
 
 # Always exclude these patterns (in addition to .gitignore)
 DEFAULT_EXCLUDES = [
@@ -60,6 +69,7 @@ def load_gitignore_spec(workspace_path: str) -> pathspec.PathSpec:
 def load_workspace(workspace_path: str, layer_map: dict):
     """Load documents from workspace directory, respecting .gitignore and adding layer metadata."""
     workspace = Path(workspace_path)
+    workspace_root = str(workspace.resolve())
     spec = load_gitignore_spec(workspace_path)
 
     docs = []
@@ -83,10 +93,12 @@ def load_workspace(workspace_path: str, layer_map: dict):
             loader = TextLoader(str(file_path), autodetect_encoding=True)
             loaded_docs = loader.load()
 
-            # Add layer metadata to each document
+            # Add metadata to each document
             for doc in loaded_docs:
                 layer = classify_layer(str(rel_path), layer_map)
                 doc.metadata["layer"] = layer
+                doc.metadata["workspace_root"] = workspace_root
+                doc.metadata["relative_path"] = str(rel_path)
                 layer_counts[layer] = layer_counts.get(layer, 0) + 1
 
             docs.extend(loaded_docs)
@@ -111,14 +123,30 @@ def split_documents(docs):
 
 def create_vectorstore(docs, collection_name: str):
     """Create Qdrant vector store from documents."""
-    embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+    embeddings = get_embeddings()
+    qdrant_client = get_qdrant_client()
 
-    vectorstore = QdrantVectorStore.from_documents(
-        docs,
-        embeddings,
-        url=QDRANT_URL,
+    # Create collection manually if it doesn't exist
+    from qdrant_client.http.models import Distance, VectorParams
+
+    try:
+        qdrant_client.get_collection(collection_name)
+    except Exception:
+        # Collection doesn't exist, create it
+        qdrant_client.create_collection(
+            collection_name=collection_name,
+            vectors_config=VectorParams(size=384, distance=Distance.COSINE),
+        )
+
+    # Create vector store with existing client
+    vectorstore = QdrantVectorStore(
+        client=qdrant_client,
         collection_name=collection_name,
+        embedding=embeddings,
     )
+
+    # Add documents
+    vectorstore.add_documents(docs)
     return vectorstore
 
 
@@ -138,10 +166,16 @@ def main():
 
     # Check if collection exists and ask before deletion (unless skipped)
     if not skip_delete_check:
-        client = QdrantClient(url=QDRANT_URL)
+        client = get_qdrant_client()
         collections = [c.name for c in client.get_collections().collections]
         if collection_name in collections:
-            response = input(f"Collection '{collection_name}' already exists. Delete and re-index? [Y/n]: ").strip().lower()
+            response = (
+                input(
+                    f"Collection '{collection_name}' already exists. Delete and re-index? [Y/n]: "
+                )
+                .strip()
+                .lower()
+            )
             if response == "n":
                 print("Aborted.")
                 sys.exit(0)

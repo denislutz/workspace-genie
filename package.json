@@ -1,0 +1,23 @@
+{
+  "name": "workspace-genie",
+  "version": "1.0.0",
+  "description": "A RAG (Retrieval-Augmented Generation) system for indexing and querying workspace codebases. Provides semantic code search via MCP (Model Context Protocol) to external LLMs like Claude.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/denislutz/workspace-genie.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/denislutz/workspace-genie/issues"
+  },
+  "homepage": "https://github.com/denislutz/workspace-genie#readme",
+  "devDependencies": {
+    "@modelcontextprotocol/inspector": "^0.20.0"
+  }
+}

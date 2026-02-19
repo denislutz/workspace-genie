@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 import asyncio
+import logging
+from typing import Any
 from mcp.server.fastmcp import FastMCP
-from langchain_qdrant import QdrantVectorStore
-from langchain_huggingface import HuggingFaceEmbeddings
-from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-from config import QDRANT_URL, EMBEDDING_MODEL
+
+import sys
+import os
+from pathlib import Path
+
+from workspace_content_s import format_results, format_section
+
+# Add parent directory to path for config import
+parent_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(parent_dir))
+
+from config import CONTENT_PREVIEW_SIZE
 from layer_config import (
     classify_layer,
     load_default_layer_map,
@@ -15,45 +24,23 @@ from layer_config import (
     load_project_layer_map,
 )
 from index_workspace import load_workspace, split_documents, create_vectorstore
+from vector_store_s import *
+from vector_store_config import get_qdrant_client, get_embeddings
+import vector_store_s
 
+# Module-level setup
+logger = logging.getLogger(__name__)
 mcp = FastMCP("workspace-genie")
 
-embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-qdrant_client = QdrantClient(url=QDRANT_URL)
+# Cache for workspace root paths (collection_name -> root_path)
+_workspace_roots: dict[str, str] = {}
+
+# Use dependency injection for clients
+embeddings = get_embeddings()
+qdrant_client = get_qdrant_client()
 
 
-def _format_results(results) -> list:
-    """Format search results into structured list."""
-    return [
-        {
-            "file": r.metadata.get("source", "unknown"),
-            "layer": r.metadata.get("layer", "other"),
-            "content": r.page_content[:500],
-        }
-        for r in results
-    ]
-
-
-def _format_section(items: list) -> str:
-    """Format a section of results as markdown."""
-    if not items:
-        return "_No relevant items found_\n"
-
-    output = ""
-    for item in items:
-        output += f"\n### {item['file']}\n```\n{item['content']}\n```\n"
-    return output
-
-
-def _search_with_filter(vectorstore, query: str, layer: str, k: int):
-    """Search with layer filter using Qdrant native filtering."""
-    filter_condition = Filter(
-        must=[FieldCondition(key="metadata.layer", match=MatchValue(value=layer))]
-    )
-    return vectorstore.similarity_search(query, k=k, filter=filter_condition)
-
-
-def _search_with_layers(vectorstore, query: str, layers: list[str], k: int):
+def _search_with_layers(workspace: str, query: str, layers: list[str], k: int):
     """Search across multiple layers, distributing k across them."""
     if not layers:
         return []
@@ -63,7 +50,12 @@ def _search_with_layers(vectorstore, query: str, layers: list[str], k: int):
 
     for layer in layers:
         try:
-            layer_results = _search_with_filter(vectorstore, query, layer, k_per_layer)
+            layer_results = search_with_filter(
+                workspace=workspace,
+                query=query,
+                filter=layer,
+                k=k_per_layer,
+            )
             results.extend(layer_results)
         except Exception:
             continue
@@ -80,25 +72,78 @@ def search_codebase(workspace: str, query: str, num_results: int = 5) -> str:
         query: Search query to find relevant code
         num_results: Number of results to return (default 5)
     """
-    collection_name = f"workspace_{workspace}"
 
-    vectorstore = QdrantVectorStore.from_existing_collection(
-        embedding=embeddings,
-        url=QDRANT_URL,
-        collection_name=collection_name,
-    )
+    vectorstore = vector_store_s.store_for_workspace(workspace)
 
     results = vectorstore.similarity_search(query, k=num_results)
 
-    # Format results
+    workspace_root = vector_store_s.get_workspace_root(workspace)
+    formatted = format_results(results, workspace_root)
+
+    # Format results with relative paths
     context = []
-    for r in results:
-        file = r.metadata.get("source", "unknown")
-        layer = r.metadata.get("layer", "")
-        layer_tag = f" [{layer}]" if layer else ""
-        context.append(f"### {file}{layer_tag}\n```\n{r.page_content}\n```")
+    for item in formatted:
+        layer_tag = f" [{item['layer']}]" if item["layer"] else ""
+        context.append(f"### {item['file']}{layer_tag}\n```\n{item['content']}\n```")
 
     return "\n\n".join(context)
+
+
+def to_workspace_id(workspace_id: str) -> str:
+    """Creates a workspace id out of a given unique workspace name for unique index"""
+    if "/" in workspace_id:
+        workspace_id_name = workspace_id.split("/")[-1]
+    else:
+        workspace_id_name = workspace_id
+
+    return f"workspace_{workspace_id_name}"
+
+
+@mcp.tool()
+def find_similar_files(
+    *,
+    task: str = "implement user login",
+    current_file: str = "",
+    workspace: str = "workspace-genie",
+) -> dict[str, str | list[str]]:
+    """Agentic search: finds context + examples + suggests approach for a task."""
+    similar_raw = search_codebase_smart(workspace, task, current_file)
+    similar_files: list[str] = []
+    for line in similar_raw.split("\n"):
+        if line.startswith("### apps/"):
+            similar_files.append(line[4:])
+
+    return {
+        "task": task,
+        "current_file": current_file,
+        "similar_files": similar_files[:5],
+        "recommendation": f"Use patterns from {similar_files[:5] if similar_files else 'base libs'}",
+        "next_step": "Open the top similar file and adapt the pattern",
+    }
+
+
+@mcp.tool()
+def find_similar_patterns(
+    workspace: str, query: str, current_file: str = ""
+) -> dict[str, Any]:
+    """Find similar patterns in the same layer as current file."""
+
+    # Reuse your existing layer detection
+    layer = classify_layer(current_file, load_default_layer_map())
+
+    # Search within that layer only
+    results = search_with_filter(workspace=workspace, query=query, filter=layer, k=8)
+
+    similar_patters = [
+        {"file": r.metadata.get("source", "unknown"), "snippet": r.page_content[:200]}
+        for r in results
+    ]
+
+    return {
+        "current_layer": layer,
+        "similar_patterns": similar_patters,
+        "usage_hint": f"Follow the {layer} layer conventions shown above",
+    }
 
 
 @mcp.tool()
@@ -119,14 +164,10 @@ def search_codebase_smart(
         query: What to search for (e.g., "authentication logic")
         current_file: Current file being edited (optional, for context-aware results)
     """
-    collection_name = f"workspace_{workspace}"
+
     layer_map = load_default_layer_map()  # TODO: could load from workspace metadata
 
-    vectorstore = QdrantVectorStore.from_existing_collection(
-        embedding=embeddings,
-        url=QDRANT_URL,
-        collection_name=collection_name,
-    )
+    vectorstore = vector_store_s.store_for_workspace(workspace)
 
     # Detect current layer from file path
     current_layer = None
@@ -135,12 +176,19 @@ def search_codebase_smart(
 
     # 1. Architecture & Patterns - dynamically get layers with "architecture" role
     arch_layers = get_architecture_layers(layer_map)
-    architecture = _search_with_layers(vectorstore, query, arch_layers, k=5)
+    architecture = _search_with_layers(
+        workspace=workspace, query=query, layers=arch_layers, k=5
+    )
 
     # 2. Similar Features (same layer if known, otherwise general search)
     if current_layer and current_layer != "other":
         try:
-            similar_features = _search_with_filter(vectorstore, query, current_layer, k=10)
+            similar_features = search_with_filter(
+                workspace=workspace,
+                query=query,
+                filter=current_layer,
+                k=10,
+            )
         except Exception:
             similar_features = vectorstore.similarity_search(query, k=10)
     else:
@@ -148,27 +196,26 @@ def search_codebase_smart(
 
     # 3. Base Libraries - dynamically get layers with "base" role
     base_layer_names = get_base_layers(layer_map)
-    base_libs = _search_with_layers(vectorstore, query, base_layer_names, k=8)
+    base_libs = _search_with_layers(workspace, query, base_layer_names, k=8)
 
-    # Format response
-    formatted_output = f"""# Codebase Context for: {query}
+    # Format with deduplication across sections
+    seen_files: set = set()
+    workspace_root = vector_store_s.get_workspace_root(workspace)
+    arch_formatted = format_results(architecture, workspace_root)
+    similar_formatted = format_results(similar_features, workspace_root)
+    base_formatted = format_results(base_libs, workspace_root)
 
-## Architecture & Patterns
-{_format_section(_format_results(architecture))}
+    # Format response with cross-section deduplication
+    formatted_output = f"""# Context: {query}
 
-## Similar Implementations
-{_format_section(_format_results(similar_features))}
-
-## Reusable Base Libraries
-{_format_section(_format_results(base_libs))}
-
----
-**Instructions for Claude:**
-- Check if base libraries already solve this - REUSE them
-- Follow patterns from architecture docs
-- Extend similar implementations - don't duplicate
-- Only write NEW code for feature-specific logic
-"""
+    ## Architecture & Patterns
+    {format_section(arch_formatted, seen_files)}
+    ## Similar Implementations
+    {format_section(similar_formatted, seen_files)}
+    ## Reusable Base Libraries
+    {format_section(base_formatted, seen_files)}
+    ---
+    **Guidance:** Reuse base libs, follow arch patterns, extend similar code."""
 
     return formatted_output
 
@@ -206,7 +253,7 @@ def index_workspace(workspace_path: str, force_reindex: bool = False) -> str:
 
     workspace_path = os.path.abspath(workspace_path)
     project_name = os.path.basename(workspace_path)
-    collection_name = f"workspace_{project_name}"
+    collection_name = to_workspace_id(project_name)
 
     if not os.path.isdir(workspace_path):
         return f"Error: '{workspace_path}' is not a valid directory."
@@ -245,6 +292,7 @@ def index_workspace(workspace_path: str, force_reindex: bool = False) -> str:
 
 async def main():
     await mcp.run_stdio_async()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
